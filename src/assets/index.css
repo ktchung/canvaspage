@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+.konvajs-content,
+.konvajs-content canvas {
+  box-sizing: content-box;
+  max-width: none;
+}
+
 @font-face {
   font-family: 'Manrope';
   font-weight: 400;

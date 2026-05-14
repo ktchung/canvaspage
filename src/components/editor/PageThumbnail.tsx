@@ -41,6 +41,15 @@ export default function PageThumbnail({ page, index, active, onSelect, onDelete 
         {sorted.map((ci) => {
           const img = images.find((i) => i.id === ci.imageId)
           if (!img) return null
+          const crop = ci.crop
+          let cropStyle: React.CSSProperties = {}
+          if (crop) {
+            const top = (crop.y / ci.natH) * 100
+            const left = (crop.x / ci.natW) * 100
+            const bottom = ((ci.natH - crop.y - crop.height) / ci.natH) * 100
+            const right = ((ci.natW - crop.x - crop.width) / ci.natW) * 100
+            cropStyle = { objectViewBox: `inset(${top}% ${right}% ${bottom}% ${left}%)` }
+          }
           return (
             <img
               key={ci.id}
@@ -52,8 +61,9 @@ export default function PageThumbnail({ page, index, active, onSelect, onDelete 
                 top: `${(ci.y / A4_H) * 100}%`,
                 width: `${(ci.width / A4_W) * 100}%`,
                 height: `${(ci.height / A4_H) * 100}%`,
-                objectFit: 'cover',
-                pointerEvents: 'none'
+                objectFit: 'fill',
+                pointerEvents: 'none',
+                ...cropStyle
               }}
               alt=""
             />

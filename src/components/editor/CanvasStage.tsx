@@ -18,6 +18,9 @@ import CropOverlay from './CropOverlay'
 import SelectionToolbar from './SelectionToolbar'
 import ZoomControls from './ZoomControls'
 import ToastCard from '@/components/shared/ToastCard'
+import { patchKonvaHitDetection } from '@/lib/konvaHitFix'
+
+patchKonvaHitDetection()
 
 function showDropError(title: string, description: string) {
   toast.custom((id) => (
@@ -58,7 +61,6 @@ export default function CanvasStage() {
   const sendBackward = useAppStore((s) => s.sendBackward)
   const dragSnapToCell = useAppStore((s) => s.dragSnapToCell)
   const reorderMasonryImage = useAppStore((s) => s.reorderMasonryImage)
-  const reflowAutoAlign = useAppStore((s) => s.reflowAutoAlign)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<Konva.Stage | null>(null)
@@ -89,10 +91,6 @@ export default function CanvasStage() {
     id: string
     pendingCrop: CropRect | null
   } | null>(null)
-
-  const handleCropUpdate = useCallback((crop: CropRect) => {
-    setCropMode((prev) => prev ? { ...prev, pendingCrop: crop } : prev)
-  }, [])
 
   useEffect(() => {
     setSelectedId(null)
@@ -195,8 +193,8 @@ export default function CanvasStage() {
   )
 
   const effectiveScale = fitScale !== null ? fitScale * zoom : 0
-  const stageWidth = fitScale !== null ? A4_W * effectiveScale : 0
-  const stageHeight = fitScale !== null ? A4_H * effectiveScale : 0
+  const stageWidth = fitScale !== null ? Math.round(A4_W * effectiveScale) : 0
+  const stageHeight = fitScale !== null ? Math.round(A4_H * effectiveScale) : 0
 
   const zoomAt = useCallback(
     (containerX: number, containerY: number, newZoom: number) => {
@@ -291,20 +289,8 @@ export default function CanvasStage() {
         startPan: pan
       }
     }
-    const onUp = (e: MouseEvent) => {
-      if (e.button !== 2) return
-      e.stopPropagation()
-      panDragRef.current = null
-    }
-    const onCtx = (e: MouseEvent) => e.preventDefault()
     el.addEventListener('mousedown', onDown, { capture: true })
-    el.addEventListener('mouseup', onUp, { capture: true })
-    el.addEventListener('contextmenu', onCtx)
-    return () => {
-      el.removeEventListener('mousedown', onDown, { capture: true })
-      el.removeEventListener('mouseup', onUp, { capture: true })
-      el.removeEventListener('contextmenu', onCtx)
-    }
+    return () => el.removeEventListener('mousedown', onDown, { capture: true })
   }, [pan])
 
   useEffect(() => {
@@ -466,6 +452,7 @@ export default function CanvasStage() {
     <div
       ref={containerRef}
       className="relative flex h-full w-full items-center justify-center overflow-hidden min-w-0 min-h-0"
+      onContextMenu={(e) => e.preventDefault()}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
@@ -775,7 +762,9 @@ export default function CanvasStage() {
                 <CropOverlay
                   ci={cropCi}
                   scale={effectiveScale}
-                  onUpdate={handleCropUpdate}
+                  onUpdate={(crop) =>
+                    setCropMode((prev) => prev ? { ...prev, pendingCrop: crop } : prev)
+                  }
                 />
               )
             })()}
@@ -814,9 +803,6 @@ export default function CanvasStage() {
                 width: selected.natW * scaleX,
                 height: selected.natH * scaleX
               })
-              if (page.settings.autoAlign !== 'off') {
-                reflowAutoAlign(page.id)
-              }
               setCropMode(null)
             }}
             onCropConfirm={() => {
@@ -830,9 +816,6 @@ export default function CanvasStage() {
                   width: cropMode.pendingCrop.width * scaleX,
                   height: cropMode.pendingCrop.height * scaleY
                 })
-                if (page.settings.autoAlign !== 'off') {
-                  reflowAutoAlign(page.id)
-                }
               }
               setCropMode(null)
             }}

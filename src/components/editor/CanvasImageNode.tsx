@@ -44,6 +44,7 @@ export default function CanvasImageNode({
         if (isSelected) onNodeRef(n)
       }}
       image={img}
+      listening={!!img}
       x={ci.x}
       y={ci.y}
       width={ci.width}
