@@ -1,4 +1,8 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+/* The app always renders with <html class="dark">; key dark: utilities off that class, not the OS theme. */
+@custom-variant dark (&:is(.dark *));
 
 .konvajs-content,
 .konvajs-content canvas {
@@ -110,12 +114,15 @@
   --scrollbar-hover: 0 0% 55%;
 }
 
-* {
-  border-color: hsl(var(--border));
-}
+/* In the base layer so Tailwind utilities (border-primary, cursor-not-allowed, ...) can override them. */
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
 
-button, a, [role="button"] {
-  cursor: pointer;
+  button, a, [role="button"] {
+    cursor: pointer;
+  }
 }
 
 body {
