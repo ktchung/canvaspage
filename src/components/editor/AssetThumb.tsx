@@ -2,7 +2,7 @@ import type { ImageItem } from '@/store'
 
 interface Props {
   image: ImageItem
-  index?: number
+  index: number
   pageNums?: number[]
   onClick: () => void
 }
@@ -33,11 +33,9 @@ export default function AssetThumb({ image, index, pageNums, onClick }: Props) {
           {pageNums.length > 2 && ' ...'}
         </span>
       )}
-      {index !== undefined && (
-        <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
-          {index}
-        </span>
-      )}
+      <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+        {index}
+      </span>
     </button>
   )
 }

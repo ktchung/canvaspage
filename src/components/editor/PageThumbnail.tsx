@@ -1,7 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { X } from 'lucide-react'
-import { useAppStore, A4_W, A4_H } from '@/store'
+import { useAppStore, A4_W, A4_H, sortByZ } from '@/store'
 import type { DocumentPage } from '@/store'
 import { cn } from '@/lib/utils'
 
@@ -18,7 +18,7 @@ export default function PageThumbnail({ page, index, active, onSelect, onDelete 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: page.id })
 
-  const sorted = [...page.canvasImages].sort((a, b) => a.zIndex - b.zIndex)
+  const sorted = sortByZ(page.canvasImages)
 
   return (
     <div
