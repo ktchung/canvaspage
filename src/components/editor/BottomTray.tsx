@@ -11,16 +11,20 @@ import {
 } from '@/components/ui/select'
 import AssetThumb from './AssetThumb'
 import ImagePreviewDialog from '@/components/shared/ImagePreviewDialog'
+import DeleteConfirmDialog, { imageDeleteCopy } from '@/components/shared/DeleteConfirmDialog'
+import { placeImageOnPage } from '@/lib/placeImage'
 
 export default function BottomTray() {
   const albums = useAppStore((s) => s.albums)
   const images = useAppStore((s) => s.images)
   const pages = useAppStore((s) => s.pages)
   const deleteImage = useAppStore((s) => s.deleteImage)
+  const activePageId = useAppStore((s) => s.activePageId)
   const navigate = useNavigate()
 
   const [albumId, setAlbumId] = useState<string>('all')
   const [previewId, setPreviewId] = useState<string | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
 
   const filtered = useMemo(
     () => (albumId === 'all' ? images : images.filter((i) => i.albumId === albumId)),
@@ -48,9 +52,19 @@ export default function BottomTray() {
     : undefined
 
   function handlePreviewDelete() {
-    if (!previewId) return
     setPreviewId(null)
-    deleteImage(previewId)
+    setDeleteId(previewId)
+  }
+
+  function handleConfirmDelete() {
+    if (deleteId) deleteImage(deleteId)
+    setDeleteId(null)
+  }
+
+  function handleAddToPage() {
+    if (!previewImage || !activePageId) return
+    setPreviewId(null)
+    placeImageOnPage(activePageId, previewImage)
   }
 
   return (
@@ -94,6 +108,14 @@ export default function BottomTray() {
         album={previewAlbum}
         onClose={() => setPreviewId(null)}
         onDelete={handlePreviewDelete}
+        onAddToPage={activePageId ? handleAddToPage : undefined}
+      />
+
+      <DeleteConfirmDialog
+        open={deleteId !== null}
+        {...imageDeleteCopy(1)}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteId(null)}
       />
     </div>
   )

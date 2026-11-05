@@ -23,14 +23,14 @@ A web application for composing multi-page A4 documents from images. Arrange ima
 - Zoom (Ctrl/Cmd + wheel or `+`/`-`) and pan (right-click drag)
 - Multi-page document: add, remove, and reorder pages freely
 - Per-page settings: auto-align Off, Grid (rows × columns) or Masonry (columns), with margins and gap
-- Bottom image tray: browse images by album and drag onto the canvas
+- Bottom image tray: browse images by album; drag onto the canvas, or click to preview and "Add to page"
 - Export to PDF: each canvas page maps to one A4 PDF page
 
 ### Gallery
 - Browse all imported images in a masonry grid or list view
 - Filter by album
 - Click any image to preview with metadata (file size, album)
-- Delete images individually or in bulk — removes placements from canvas pages
+- Delete images individually or in bulk (with confirmation) — removes placements from canvas pages
 
 ### Import
 - Drag-and-drop zone or file picker for PNG, JPG, and WEBP images
@@ -39,7 +39,8 @@ A web application for composing multi-page A4 documents from images. Arrange ima
 ### Albums
 - Chosen at import time: pick an existing album or create a new one
 - Available as filters in Gallery and Editor tray
-- Delete an album to remove all of its images (and their canvas placements)
+- Rename an album from the Gallery toolbar
+- Delete an album (with confirmation) to remove all of its images and their canvas placements
 
 ## Getting Started
 

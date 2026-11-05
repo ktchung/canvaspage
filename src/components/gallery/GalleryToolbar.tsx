@@ -1,4 +1,4 @@
-import { Trash2, FolderMinus } from 'lucide-react'
+import { Trash2, FolderMinus, Pencil } from 'lucide-react'
 import allImagesSvg from '@/assets/icons/all-images.svg?raw'
 import gridViewSvg from '@/assets/icons/grid-view.svg?raw'
 import listViewSvg from '@/assets/icons/list-view.svg?raw'
@@ -21,7 +21,8 @@ interface GalleryToolbarProps {
   onViewModeChange: (mode: 'grid' | 'list') => void
   selectedCount: number
   onBulkDelete: () => void
-  onDeleteAlbum: (albumId: string) => void
+  onRenameAlbum: (album: Album) => void
+  onDeleteAlbum: (album: Album) => void
 }
 
 export default function GalleryToolbar({
@@ -32,6 +33,7 @@ export default function GalleryToolbar({
   onViewModeChange,
   selectedCount,
   onBulkDelete,
+  onRenameAlbum,
   onDeleteAlbum
 }: GalleryToolbarProps) {
   const selectedAlbum = albumFilter !== 'all' ? albums.find((a) => a.id === albumFilter) : null
@@ -54,14 +56,24 @@ export default function GalleryToolbar({
 
       <div className="ml-auto flex items-center gap-1">
         {selectedAlbum && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onDeleteAlbum(selectedAlbum.id)}
-            title={`Delete album "${selectedAlbum.name}"`}
-          >
-            <FolderMinus className="size-4" />
-          </Button>
+          <>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => onRenameAlbum(selectedAlbum)}
+              title={`Rename album "${selectedAlbum.name}"`}
+            >
+              <Pencil className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => onDeleteAlbum(selectedAlbum)}
+              title={`Delete album "${selectedAlbum.name}"`}
+            >
+              <FolderMinus className="size-4" />
+            </Button>
+          </>
         )}
         <Button
           variant="ghost"

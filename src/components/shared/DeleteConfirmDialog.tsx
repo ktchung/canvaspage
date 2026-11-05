@@ -10,27 +10,25 @@ import {
 
 interface DeleteConfirmDialogProps {
   open: boolean
-  count: number
+  title: string
+  description: string
   onConfirm: () => void
   onCancel: () => void
 }
 
 export default function DeleteConfirmDialog({
   open,
-  count,
+  title,
+  description,
   onConfirm,
   onCancel
 }: DeleteConfirmDialogProps) {
-  const plural = count > 1 ? 's' : ''
-
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
       <DialogContent showCloseButton={false} className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Delete Image{plural}</DialogTitle>
-          <DialogDescription>
-            This will permanently remove {count} image{plural} from the gallery and all canvas pages.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>
@@ -43,4 +41,13 @@ export default function DeleteConfirmDialog({
       </DialogContent>
     </Dialog>
   )
+}
+
+/** Title/description for deleting `count` images. */
+export function imageDeleteCopy(count: number) {
+  const plural = count > 1 ? 's' : ''
+  return {
+    title: `Delete Image${plural}`,
+    description: `This will permanently remove ${count} image${plural} from the gallery and all canvas pages.`
+  }
 }

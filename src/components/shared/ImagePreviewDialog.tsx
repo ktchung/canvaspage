@@ -1,4 +1,4 @@
-import { Trash2, X } from 'lucide-react'
+import { Plus, Trash2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,13 +15,16 @@ interface ImagePreviewDialogProps {
   album: Album | undefined
   onClose: () => void
   onDelete: () => void
+  /** When provided, shows an "Add to page" button (used by the editor tray). */
+  onAddToPage?: () => void
 }
 
 export default function ImagePreviewDialog({
   image,
   album,
   onClose,
-  onDelete
+  onDelete,
+  onAddToPage
 }: ImagePreviewDialogProps) {
   const open = image !== null
 
@@ -67,6 +70,12 @@ export default function ImagePreviewDialog({
 
               {/* Right: action buttons */}
               <div className="flex items-center gap-2">
+                {onAddToPage && (
+                  <Button size="sm" onClick={onAddToPage}>
+                    <Plus className="size-4" />
+                    Add to page
+                  </Button>
+                )}
                 <Button
                   variant="destructive"
                   size="icon-sm"

@@ -17,6 +17,7 @@ Built with react-konva. Canvas images are Konva `Image` nodes on a `Stage`; the 
 - Each `DocumentPage` has its own `settings`: auto-align mode (`off` | `grid` | `masonry`), rows, columns, margins and gap. Grid and masonry pages reflow automatically when settings change.
 - Images can be cropped; `CanvasImage.crop` is in source-image pixels. Use `effectiveDims()` for the visible aspect ratio.
 - PDF export (`lib/exportPdf.ts`) rebuilds each page on an off-screen Konva stage from store data, rasterises it to PNG (`pixelRatio: 2`) and places it full-page with pdf-lib. Don't use a DOM-capture approach (html2canvas is avoided by design).
+- Add images to a page with `placeImageOnPage()` (`lib/placeImage.ts`); it loads the natural size, applies the page's auto-align rules and toasts on rejection.
 - `lib/konvaHitFix.ts` replaces Konva's colour-based hit detection with geometric hit testing, because browser canvas-fingerprinting protection adds noise that breaks it. Don't remove it.
 
 ## Component library

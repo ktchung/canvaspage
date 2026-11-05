@@ -9,23 +9,21 @@ import {
   effectiveDims,
   fitToCell,
   imageCell,
-  makeId,
   pointToCell,
   masonryMetrics,
   sortByZ
 } from '@/store'
-import type { CanvasImage, CropRect } from '@/store'
+import type { CropRect } from '@/store'
 import CanvasImageNode from './CanvasImageNode'
 import CropOverlay from './CropOverlay'
 import SelectionToolbar from './SelectionToolbar'
 import ZoomControls from './ZoomControls'
 import { showToast } from '@/components/shared/ToastCard'
 import { patchKonvaHitDetection } from '@/lib/konvaHitFix'
+import { DROP_CELL_OCCUPIED, DROP_OFF_GRID, placeImageOnPage } from '@/lib/placeImage'
 
 patchKonvaHitDetection()
 
-const DROP_OFF_GRID = ['Drop on a grid cell', 'Release the image over a cell inside the page.'] as const
-const DROP_CELL_OCCUPIED = ['Cell is occupied', 'Pick an empty cell or swap images after placing.'] as const
 
 const MAX_ZOOM = 4
 const MIN_ZOOM = 1
@@ -41,7 +39,6 @@ export default function CanvasStage() {
   const page = useAppStore((s) => s.pages.find((p) => p.id === s.activePageId))
   const images = useAppStore((s) => s.images)
   const updateCanvasImage = useAppStore((s) => s.updateCanvasImage)
-  const addCanvasImage = useAppStore((s) => s.addCanvasImage)
   const removeCanvasImage = useAppStore((s) => s.removeCanvasImage)
   const bringForward = useAppStore((s) => s.bringForward)
   const sendBackward = useAppStore((s) => s.sendBackward)
@@ -360,52 +357,7 @@ export default function CanvasStage() {
       targetCell = cell
     }
 
-    const el = document.createElement('img')
-    el.onload = () => {
-      const natW = el.naturalWidth
-      const natH = el.naturalHeight
-      const defaultW = 240
-      const aspect = natH / natW
-      const width = defaultW
-      const height = defaultW * aspect
-      const nextZ = page.canvasImages.length
-      const ci: CanvasImage = {
-        id: makeId('ci'),
-        imageId,
-        x: pt.x - width / 2,
-        y: pt.y - height / 2,
-        width,
-        height,
-        zIndex: nextZ,
-        natW,
-        natH
-      }
-      const res = addCanvasImage(
-        page.id,
-        ci,
-        targetCell ? { targetCell } : undefined
-      )
-      if (res.rejected) {
-        if (res.reason === 'cell-occupied') {
-          showToast('error', ...DROP_CELL_OCCUPIED)
-        } else if (res.reason === 'cell-out-of-range') {
-          showToast('error', ...DROP_OFF_GRID)
-        } else if (autoAlign === 'masonry') {
-          showToast(
-            'error',
-            'Page is full',
-            'Increase columns in page settings or disable auto-align.'
-          )
-        } else {
-          showToast(
-            'error',
-            'Grid is full',
-            'Increase rows/columns in page settings or disable auto-align.'
-          )
-        }
-      }
-    }
-    el.src = img.url
+    placeImageOnPage(page.id, img, { center: pt, targetCell: targetCell ?? undefined })
   }
 
   let toolbarPos: { x: number; y: number } | null = null

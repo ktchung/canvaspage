@@ -46,7 +46,7 @@ Top-right corner: Help button (question mark icon, Editor page only) followed by
 
 **Per-page settings ("Page Settings" modal):**
 - **Auto-align** mode — Off, Grid, or Masonry. In **Grid** mode:
-  - Clicking an image in the bottom tray places it in the next empty grid cell; the placement is rejected with a toast when the grid is full
+  - Clicking an image in the bottom tray opens its preview; the preview's "Add to page" button places it in the next empty grid cell (or the page centre / next masonry slot in other modes). The placement is rejected with a toast when the grid is full
   - Dragging an image from the bottom tray onto the canvas places it in the cell under the cursor; a hover overlay previews the target cell while dragging, tinted differently when the cell is occupied. Dropping on an occupied cell or outside the page is rejected with a toast
   - Resize handles are disabled — cells dictate each image's size
   - Dragging an image already on the canvas over another cell swaps the two images; dragging onto an empty cell moves the image there

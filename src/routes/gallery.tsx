@@ -5,8 +5,10 @@ import GalleryToolbar from '@/components/gallery/GalleryToolbar'
 import MasonryGrid from '@/components/gallery/MasonryGrid'
 import ListView from '@/components/gallery/ListView'
 import ImagePreviewDialog from '@/components/shared/ImagePreviewDialog'
-import DeleteConfirmDialog from '@/components/gallery/DeleteConfirmDialog'
+import RenameAlbumDialog from '@/components/gallery/RenameAlbumDialog'
+import DeleteConfirmDialog, { imageDeleteCopy } from '@/components/shared/DeleteConfirmDialog'
 import { useAppStore } from '@/store'
+import type { Album } from '@/store'
 
 interface GallerySearch {
   album?: string
@@ -26,6 +28,7 @@ function GalleryPage() {
   const albums = useAppStore((s) => s.albums)
   const deleteImage = useAppStore((s) => s.deleteImage)
   const deleteAlbum = useAppStore((s) => s.deleteAlbum)
+  const renameAlbum = useAppStore((s) => s.renameAlbum)
 
   const [albumFilter, setAlbumFilter] = useState<string>(albumParam ?? 'all')
 
@@ -39,6 +42,8 @@ function GalleryPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ ids: string[] } | null>(null)
+  const [albumToDelete, setAlbumToDelete] = useState<Album | null>(null)
+  const [albumToRename, setAlbumToRename] = useState<Album | null>(null)
 
   const filteredImages =
     albumFilter === 'all' ? images : images.filter((i) => i.albumId === albumFilter)
@@ -66,11 +71,22 @@ function GalleryPage() {
     setDeleteTarget({ ids: [previewId] })
   }
 
-  function handleDeleteAlbum(albumId: string) {
-    deleteAlbum(albumId)
-    if (albumFilter === albumId) setAlbumFilter('all')
+  function handleConfirmDeleteAlbum() {
+    if (!albumToDelete) return
+    deleteAlbum(albumToDelete.id)
+    if (albumFilter === albumToDelete.id) setAlbumFilter('all')
     setSelectedIds(new Set())
+    setAlbumToDelete(null)
   }
+
+  function handleConfirmRename(name: string) {
+    if (albumToRename) renameAlbum(albumToRename.id, name)
+    setAlbumToRename(null)
+  }
+
+  const albumToDeleteCount = albumToDelete
+    ? images.filter((i) => i.albumId === albumToDelete.id).length
+    : 0
 
   function handleConfirmDelete() {
     if (!deleteTarget) return
@@ -94,7 +110,8 @@ function GalleryPage() {
         onViewModeChange={setViewMode}
         selectedCount={selectedIds.size}
         onBulkDelete={handleBulkDelete}
-        onDeleteAlbum={handleDeleteAlbum}
+        onRenameAlbum={setAlbumToRename}
+        onDeleteAlbum={setAlbumToDelete}
       />
       <div className="flex-1 overflow-y-auto">
         {filteredImages.length === 0 ? (
@@ -128,9 +145,23 @@ function GalleryPage() {
 
       <DeleteConfirmDialog
         open={deleteTarget !== null}
-        count={deleteTarget?.ids.length ?? 0}
+        {...imageDeleteCopy(deleteTarget?.ids.length ?? 0)}
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <DeleteConfirmDialog
+        open={albumToDelete !== null}
+        title="Delete Album"
+        description={`This will permanently remove "${albumToDelete?.name ?? ''}" and its ${albumToDeleteCount} image${albumToDeleteCount === 1 ? '' : 's'} from the gallery and all canvas pages.`}
+        onConfirm={handleConfirmDeleteAlbum}
+        onCancel={() => setAlbumToDelete(null)}
+      />
+
+      <RenameAlbumDialog
+        album={albumToRename}
+        onConfirm={handleConfirmRename}
+        onCancel={() => setAlbumToRename(null)}
       />
     </div>
   )
