@@ -3,9 +3,9 @@ import { useRef, useState } from 'react'
 import { Upload } from 'lucide-react'
 import TopBar from '@/components/shared/TopBar'
 import FileImportDialog from '@/components/import/FileImportDialog'
-import UploadErrorToast from '@/components/import/UploadErrorToast'
+import ToastCard from '@/components/shared/ToastCard'
 import { Button } from '@/components/ui/button'
-import { useAppStore } from '@/store'
+import { makeId, useAppStore } from '@/store'
 import type { ImageItem } from '@/store'
 
 export const Route = createFileRoute('/import')({
@@ -44,22 +44,19 @@ function ImportPage() {
   }
 
   function handleFileImportConfirm(albumId: string | null, newAlbumName: string | null) {
-    let resolvedAlbumId = albumId
-    if (!resolvedAlbumId) {
-      resolvedAlbumId = addAlbum(newAlbumName!)
-    }
+    const resolvedAlbumId = albumId ?? addAlbum(newAlbumName!)
 
     const newImages: ImageItem[] = pendingFiles.map((file) => ({
-      id: `img-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      id: makeId('img'),
       url: URL.createObjectURL(file),
       name: file.name,
       size: file.size,
-      albumId: resolvedAlbumId!
+      albumId: resolvedAlbumId
     }))
 
     addImages(newImages)
     setPendingFiles([])
-    navigate({ to: '/gallery', search: { album: resolvedAlbumId! } })
+    navigate({ to: '/gallery', search: { album: resolvedAlbumId } })
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -131,7 +128,7 @@ function ImportPage() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/webp"
+          accept={ACCEPTED_TYPES.join(',')}
           multiple
           className="hidden"
           onChange={handleFileInputChange}
@@ -140,7 +137,8 @@ function ImportPage() {
 
       <div className="absolute bottom-4 right-4 w-72 space-y-2">
         {errorToast && (
-          <UploadErrorToast
+          <ToastCard
+            variant="warning"
             title={errorToast.title}
             description={errorToast.description}
             onDismiss={() => setErrorToast(null)}

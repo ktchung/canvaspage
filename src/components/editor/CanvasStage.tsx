@@ -1,41 +1,29 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Stage, Layer, Rect, Line, Transformer } from 'react-konva'
 import type Konva from 'konva'
-import { AlertCircle } from 'lucide-react'
-import { toast } from 'sonner'
 import {
   useAppStore,
   A4_W,
   A4_H,
   cellMetrics,
+  effectiveDims,
   fitToCell,
+  imageCell,
   pointToCell,
-  masonryMetrics
+  masonryMetrics,
+  sortByZ
 } from '@/store'
-import type { CanvasImage, CropRect } from '@/store'
+import type { CropRect } from '@/store'
 import CanvasImageNode from './CanvasImageNode'
 import CropOverlay from './CropOverlay'
 import SelectionToolbar from './SelectionToolbar'
 import ZoomControls from './ZoomControls'
-import ToastCard from '@/components/shared/ToastCard'
+import { showToast } from '@/components/shared/ToastCard'
 import { patchKonvaHitDetection } from '@/lib/konvaHitFix'
+import { DROP_CELL_OCCUPIED, DROP_OFF_GRID, placeImageOnPage } from '@/lib/placeImage'
 
 patchKonvaHitDetection()
 
-function showDropError(title: string, description: string) {
-  toast.custom((id) => (
-    <ToastCard
-      icon={
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-destructive/10">
-          <AlertCircle size={14} className="text-destructive" />
-        </div>
-      }
-      title={title}
-      description={description}
-      onDismiss={() => toast.dismiss(id)}
-    />
-  ))
-}
 
 const MAX_ZOOM = 4
 const MIN_ZOOM = 1
@@ -46,16 +34,11 @@ function clampZoom(z: number) {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z))
 }
 
-function makeId() {
-  return `ci-${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
 export default function CanvasStage() {
   const activePageId = useAppStore((s) => s.activePageId)
   const page = useAppStore((s) => s.pages.find((p) => p.id === s.activePageId))
   const images = useAppStore((s) => s.images)
   const updateCanvasImage = useAppStore((s) => s.updateCanvasImage)
-  const addCanvasImage = useAppStore((s) => s.addCanvasImage)
   const removeCanvasImage = useAppStore((s) => s.removeCanvasImage)
   const bringForward = useAppStore((s) => s.bringForward)
   const sendBackward = useAppStore((s) => s.sendBackward)
@@ -96,12 +79,9 @@ export default function CanvasStage() {
     setSelectedId(null)
     setZoom(1)
     setPan({ x: 0, y: 0 })
-    setDragState(null)
-    setTrayDrag(null)
-    setMasonryDrag(null)
-    setCropMode(null)
   }, [activePageId])
 
+  // Every page owns its settings object, so this also fires on page switch.
   useEffect(() => {
     setDragState(null)
     setTrayDrag(null)
@@ -149,52 +129,51 @@ export default function CanvasStage() {
     return m
   }, [images])
 
-  const sorted = useMemo(
-    () => (page ? [...page.canvasImages].sort((a, b) => a.zIndex - b.zIndex) : []),
-    [page?.canvasImages]
-  )
+  const sorted = useMemo(() => (page ? sortByZ(page.canvasImages) : []), [page?.canvasImages])
 
   const selected = sorted.find((ci) => ci.id === selectedId) || null
 
-  const masonryInsertIndex = useCallback(
-    (canvasX: number, canvasY: number, draggedId: string) => {
-      if (!page || page.settings.autoAlign !== 'masonry') return null
-      const m = masonryMetrics(page.settings)
-      if (m.colW <= 0) return null
-      const others = sorted.filter((ci) => ci.id !== draggedId)
-      let bestIdx = others.length
-      let bestDist = Infinity
+  // Layout metrics for the active mode, computed once per render.
+  const settings = page?.settings
+  const grid = settings?.autoAlign === 'grid' ? cellMetrics(settings) : null
+  const gridCells = grid && !(grid.cellW <= 0 || grid.cellH <= 0) ? grid : null
+  const masonry = settings?.autoAlign === 'masonry' ? masonryMetrics(settings) : null
+  const masonryCols = masonry && !(masonry.colW <= 0) ? masonry : null
+
+  const masonryInsertIndex = (canvasX: number, canvasY: number, draggedId: string) => {
+    if (!masonryCols) return null
+    const others = sorted.filter((ci) => ci.id !== draggedId)
+    let bestIdx = others.length
+    let bestDist = Infinity
+    for (let i = 0; i < others.length; i++) {
+      const ci = others[i]
+      const midY = ci.y + ci.height / 2
+      const midX = ci.x + ci.width / 2
+      const d = Math.abs(canvasY - midY) + Math.abs(canvasX - midX) * 0.3
+      if (canvasY < midY && d < bestDist) {
+        bestDist = d
+        bestIdx = i
+      }
+    }
+    if (bestIdx === others.length) {
+      let closest = Infinity
       for (let i = 0; i < others.length; i++) {
         const ci = others[i]
-        const midY = ci.y + ci.height / 2
+        const bot = ci.y + ci.height
         const midX = ci.x + ci.width / 2
-        const d = Math.abs(canvasY - midY) + Math.abs(canvasX - midX) * 0.3
-        if (canvasY < midY && d < bestDist) {
-          bestDist = d
-          bestIdx = i
+        const d = Math.abs(canvasY - bot) + Math.abs(canvasX - midX) * 0.3
+        if (d < closest) {
+          closest = d
+          bestIdx = i + 1
         }
       }
-      if (bestIdx === others.length) {
-        let closest = Infinity
-        for (let i = 0; i < others.length; i++) {
-          const ci = others[i]
-          const bot = ci.y + ci.height
-          const midX = ci.x + ci.width / 2
-          const d = Math.abs(canvasY - bot) + Math.abs(canvasX - midX) * 0.3
-          if (d < closest) {
-            closest = d
-            bestIdx = i + 1
-          }
-        }
-      }
-      return bestIdx
-    },
-    [page, sorted]
-  )
+    }
+    return bestIdx
+  }
 
   const effectiveScale = fitScale !== null ? fitScale * zoom : 0
-  const stageWidth = fitScale !== null ? Math.round(A4_W * effectiveScale) : 0
-  const stageHeight = fitScale !== null ? Math.round(A4_H * effectiveScale) : 0
+  const stageWidth = Math.round(A4_W * effectiveScale)
+  const stageHeight = Math.round(A4_H * effectiveScale)
 
   const zoomAt = useCallback(
     (containerX: number, containerY: number, newZoom: number) => {
@@ -203,22 +182,12 @@ export default function CanvasStage() {
       if (!el) return
       const rect = el.getBoundingClientRect()
       const clamped = clampZoom(newZoom)
-      const currEff = fitScale * zoom
-      const newEff = fitScale * clamped
-      const currW = A4_W * currEff
-      const currH = A4_H * currEff
-      const stageX = rect.width / 2 - currW / 2 + pan.x
-      const stageY = rect.height / 2 - currH / 2 + pan.y
-      const wx = (containerX - stageX) / currEff
-      const wy = (containerY - stageY) / currEff
-      const newW = A4_W * newEff
-      const newH = A4_H * newEff
-      const newStageX = containerX - wx * newEff
-      const newStageY = containerY - wy * newEff
+      // Keep the page point under (containerX, containerY) fixed while scaling by k.
+      const k = clamped / zoom
       setZoom(clamped)
       setPan({
-        x: newStageX - rect.width / 2 + newW / 2,
-        y: newStageY - rect.height / 2 + newH / 2
+        x: k * pan.x + (1 - k) * (containerX - rect.width / 2),
+        y: k * pan.y + (1 - k) * (containerY - rect.height / 2)
       })
     },
     [fitScale, zoom, pan]
@@ -314,29 +283,23 @@ export default function CanvasStage() {
     }
   }, [])
 
-  const pointerToCanvas = useCallback(
-    (clientX: number, clientY: number) => {
-      const stage = stageRef.current
-      if (!stage || fitScale === null) return null
-      const rect = stage.container().getBoundingClientRect()
-      return {
-        x: (clientX - rect.left) / effectiveScale,
-        y: (clientY - rect.top) / effectiveScale
-      }
-    },
-    [fitScale, effectiveScale]
-  )
+  const pointerToCanvas = (clientX: number, clientY: number) => {
+    const stage = stageRef.current
+    if (!stage || fitScale === null) return null
+    const rect = stage.container().getBoundingClientRect()
+    return {
+      x: (clientX - rect.left) / effectiveScale,
+      y: (clientY - rect.top) / effectiveScale
+    }
+  }
 
-  const isCellOccupied = useCallback(
-    (row: number, col: number) => {
-      if (!page) return false
-      return page.canvasImages.some((ci) => {
-        const cell = pointToCell(ci.x + ci.width / 2, ci.y + ci.height / 2, page.settings)
-        return cell?.row === row && cell?.col === col
-      })
-    },
-    [page]
-  )
+  const isCellOccupied = (row: number, col: number) => {
+    if (!page) return false
+    return page.canvasImages.some((ci) => {
+      const cell = imageCell(ci, page.settings)
+      return cell?.row === row && cell?.col === col
+    })
+  }
 
   const onDragOver = (e: React.DragEvent) => {
     if (!e.dataTransfer.types.includes('application/x-canvaspage-image')) return
@@ -384,60 +347,17 @@ export default function CanvasStage() {
     if (autoAlign === 'grid') {
       const cell = pointToCell(pt.x, pt.y, page.settings)
       if (!cell) {
-        showDropError('Drop on a grid cell', 'Release the image over a cell inside the page.')
+        showToast('error', ...DROP_OFF_GRID)
         return
       }
       if (isCellOccupied(cell.row, cell.col)) {
-        showDropError('Cell is occupied', 'Pick an empty cell or swap images after placing.')
+        showToast('error', ...DROP_CELL_OCCUPIED)
         return
       }
       targetCell = cell
     }
 
-    const el = document.createElement('img')
-    el.onload = () => {
-      const natW = el.naturalWidth
-      const natH = el.naturalHeight
-      const defaultW = 240
-      const aspect = natH / natW
-      const width = defaultW
-      const height = defaultW * aspect
-      const nextZ = page.canvasImages.length
-      const ci: CanvasImage = {
-        id: makeId(),
-        imageId,
-        x: pt.x - width / 2,
-        y: pt.y - height / 2,
-        width,
-        height,
-        zIndex: nextZ,
-        natW,
-        natH
-      }
-      const res = addCanvasImage(
-        page.id,
-        ci,
-        targetCell ? { targetCell } : undefined
-      )
-      if (res.rejected) {
-        if (res.reason === 'cell-occupied') {
-          showDropError('Cell is occupied', 'Pick an empty cell or swap images after placing.')
-        } else if (res.reason === 'cell-out-of-range') {
-          showDropError('Drop on a grid cell', 'Release the image over a cell inside the page.')
-        } else if (autoAlign === 'masonry') {
-          showDropError(
-            'Page is full',
-            'Increase columns in page settings or disable auto-align.'
-          )
-        } else {
-          showDropError(
-            'Grid is full',
-            'Increase rows/columns in page settings or disable auto-align.'
-          )
-        }
-      }
-    }
-    el.src = img.url
+    placeImageOnPage(page.id, img, { center: pt, targetCell: targetCell ?? undefined })
   }
 
   let toolbarPos: { x: number; y: number } | null = null
@@ -488,9 +408,8 @@ export default function CanvasStage() {
               fill="#ffffff"
               onClick={() => { if (!cropMode) setSelectedId(null) }}
             />
-            {page.settings.autoAlign === 'grid' && (() => {
-              const m = cellMetrics(page.settings)
-              if (m.cellW <= 0 || m.cellH <= 0) return null
+            {gridCells && (() => {
+              const m = gridCells
               const rects: React.ReactNode[] = []
               for (let r = 0; r < m.gridRows; r++) {
                 for (let c = 0; c < m.gridCols; c++) {
@@ -511,9 +430,8 @@ export default function CanvasStage() {
               }
               return rects
             })()}
-            {page.settings.autoAlign === 'masonry' && (() => {
-              const m = masonryMetrics(page.settings)
-              if (m.colW <= 0 || m.usableH <= 0) return null
+            {masonryCols && !(masonryCols.usableH <= 0) && (() => {
+              const m = masonryCols
               const rects: React.ReactNode[] = []
               for (let c = 0; c < m.gridCols; c++) {
                 rects.push(
@@ -549,11 +467,7 @@ export default function CanvasStage() {
                   }}
                   onDragStart={() => {
                     if (page.settings.autoAlign === 'grid') {
-                      const cell = pointToCell(
-                        ci.x + ci.width / 2,
-                        ci.y + ci.height / 2,
-                        page.settings
-                      )
+                      const cell = imageCell(ci, page.settings)
                       if (!cell) return
                       setDragState({
                         id: ci.id,
@@ -612,9 +526,10 @@ export default function CanvasStage() {
                         targetCol = drag.hoverCol
                         useSnap = true
                       }
+                      const dims = effectiveDims(ci)
                       const fit = fitToCell(
-                        ci.natW,
-                        ci.natH,
+                        dims.natW,
+                        dims.natH,
                         targetRow,
                         targetCol,
                         page.settings
@@ -632,26 +547,15 @@ export default function CanvasStage() {
                       setMasonryDrag(null)
                       const node = nodeMap.current.get(ci.id)
                       if (node) node.position({ x: ci.x, y: ci.y })
-                      if (drag && drag.insertIndex !== null) {
-                        const result = reorderMasonryImage(page.id, ci.id, drag.insertIndex)
-                        if (result.dropped > 0) {
-                          showDropError(
-                            'Images removed',
-                            `${result.dropped} image${result.dropped > 1 ? 's' : ''} removed — not enough space.`
-                          )
-                        }
-                      } else {
-                        const result = reorderMasonryImage(
-                          page.id,
-                          ci.id,
-                          sorted.findIndex((s) => s.id === ci.id)
+                      const newIndex =
+                        drag?.insertIndex ?? sorted.findIndex((s) => s.id === ci.id)
+                      const result = reorderMasonryImage(page.id, ci.id, newIndex)
+                      if (result.dropped > 0) {
+                        showToast(
+                          'error',
+                          'Images removed',
+                          `${result.dropped} image${result.dropped > 1 ? 's' : ''} removed — not enough space.`
                         )
-                        if (result.dropped > 0) {
-                          showDropError(
-                            'Images removed',
-                            `${result.dropped} image${result.dropped > 1 ? 's' : ''} removed — not enough space.`
-                          )
-                        }
                       }
                       return
                     }
@@ -664,9 +568,8 @@ export default function CanvasStage() {
                 />
               )
             })}
-            {page.settings.autoAlign === 'grid' && dragState && (() => {
-              const m = cellMetrics(page.settings)
-              if (m.cellW <= 0 || m.cellH <= 0) return null
+            {gridCells && dragState && (() => {
+              const m = gridCells
               const overlays: React.ReactNode[] = []
               const showGhost =
                 dragState.hoverRow !== dragState.origRow ||
@@ -702,27 +605,19 @@ export default function CanvasStage() {
               }
               return overlays
             })()}
-            {page.settings.autoAlign === 'grid' && trayDrag && trayDrag.row !== null && trayDrag.col !== null && (() => {
-              const m = cellMetrics(page.settings)
-              if (m.cellW <= 0 || m.cellH <= 0) return null
-              const fill = trayDrag.occupied
-                ? 'rgba(239,68,68,0.22)'
-                : 'rgba(99,102,241,0.25)'
-              return (
-                <Rect
-                  key="tray-drag-hover"
-                  x={m.originX(trayDrag.col)}
-                  y={m.originY(trayDrag.row)}
-                  width={m.cellW}
-                  height={m.cellH}
-                  fill={fill}
-                  listening={false}
-                />
-              )
-            })()}
-            {page.settings.autoAlign === 'masonry' && masonryDrag && masonryDrag.insertIndex !== null && (() => {
-              const m = masonryMetrics(page.settings)
-              if (m.colW <= 0) return null
+            {gridCells && trayDrag && trayDrag.row !== null && trayDrag.col !== null && (
+              <Rect
+                key="tray-drag-hover"
+                x={gridCells.originX(trayDrag.col)}
+                y={gridCells.originY(trayDrag.row)}
+                width={gridCells.cellW}
+                height={gridCells.cellH}
+                fill={trayDrag.occupied ? 'rgba(239,68,68,0.22)' : 'rgba(99,102,241,0.25)'}
+                listening={false}
+              />
+            )}
+            {masonryCols && masonryDrag && masonryDrag.insertIndex !== null && (() => {
+              const m = masonryCols
               const others = sorted.filter((ci) => ci.id !== masonryDrag.id)
               const idx = masonryDrag.insertIndex
               let lineY: number
@@ -797,7 +692,7 @@ export default function CanvasStage() {
             onCropStart={() => setCropMode({ id: selected.id, pendingCrop: null })}
             onCropCancel={() => setCropMode(null)}
             onCropReset={() => {
-              const scaleX = selected.width / (selected.crop?.width ?? selected.natW)
+              const scaleX = selected.width / effectiveDims(selected).natW
               updateCanvasImage(page.id, selected.id, {
                 crop: undefined,
                 width: selected.natW * scaleX,
@@ -807,10 +702,9 @@ export default function CanvasStage() {
             }}
             onCropConfirm={() => {
               if (cropMode?.pendingCrop) {
-                const prevCropW = selected.crop?.width ?? selected.natW
-                const prevCropH = selected.crop?.height ?? selected.natH
-                const scaleX = selected.width / prevCropW
-                const scaleY = selected.height / prevCropH
+                const prev = effectiveDims(selected)
+                const scaleX = selected.width / prev.natW
+                const scaleY = selected.height / prev.natH
                 updateCanvasImage(page.id, selected.id, {
                   crop: cropMode.pendingCrop,
                   width: cropMode.pendingCrop.width * scaleX,

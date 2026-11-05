@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Rect, Group } from 'react-konva'
 import type Konva from 'konva'
+import { effectiveDims } from '@/store'
 import type { CropRect, CanvasImage } from '@/store'
 
 const HANDLE_SIZE = 8
@@ -17,8 +18,7 @@ interface Props {
 export default function CropOverlay({ ci, scale, onUpdate }: Props) {
   const visibleX = ci.crop?.x ?? 0
   const visibleY = ci.crop?.y ?? 0
-  const visibleW = ci.crop?.width ?? ci.natW
-  const visibleH = ci.crop?.height ?? ci.natH
+  const { natW: visibleW, natH: visibleH } = effectiveDims(ci)
 
   const sx = ci.width / visibleW
   const sy = ci.height / visibleH

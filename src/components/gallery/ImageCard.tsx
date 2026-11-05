@@ -1,4 +1,5 @@
 import type { ImageItem } from '@/store'
+import SelectCheckbox from './SelectCheckbox'
 
 interface ImageCardProps {
   image: ImageItem
@@ -26,25 +27,12 @@ export default function ImageCard({ image, selected, onSelect, onPreview }: Imag
           onSelect()
         }}
       >
-        <div
-          className={`h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
-            selected
-              ? 'bg-primary border-primary'
-              : 'bg-white/80 border-white'
-          }`}
-        >
-          {selected && (
-            <svg
-              className="h-3 w-3 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={3}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          )}
-        </div>
+        <SelectCheckbox
+          checked={selected}
+          uncheckedClassName="bg-white/80 border-white"
+          className="h-5 w-5"
+          iconClassName="h-3 w-3"
+        />
       </div>
     </div>
   )

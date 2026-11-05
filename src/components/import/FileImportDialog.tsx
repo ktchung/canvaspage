@@ -32,6 +32,8 @@ export default function FileImportDialog({
     if (open) {
       setNewAlbumName('')
       setMode(albums.length === 0 ? 'new' : 'existing')
+      // Albums may have been added or deleted since the last import.
+      setSelectedAlbumId(albums[0]?.id ?? '')
     }
   }, [open])
 

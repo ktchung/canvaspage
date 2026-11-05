@@ -33,7 +33,7 @@ Rules:
 - 72-char subject line limit
 - Body only when change is non-obvious (use bullet `* bullet` lines)
 
-PR merge commits use format `feat/branch-name (#N)` with bullet body — skip this format for regular commits.
+PRs are squash-merged as `type: description (#N)`, with the squashed commit subjects as body lines — skip the `(#N)` suffix for regular commits.
 
 ## Steps
 

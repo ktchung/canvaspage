@@ -30,7 +30,7 @@ Prefix with `v` if not already (e.g. `2.1.0` → `v2.1.0`).
 git tag -l "v<version>"
 ```
 
-If the tag doesn't exist, report the error and stop.
+If the tag doesn't exist, report the error and stop. (Tags are created manually: `git tag v<version> && git push origin v<version>`.)
 
 **Step 3 — Find the previous tag**
 
@@ -38,18 +38,17 @@ If the tag doesn't exist, report the error and stop.
 git tag --sort=-v:refname
 ```
 
-Find the tag immediately before the current one in version order. If there is no previous tag, use the root commit as the base.
+Find the tag immediately before the current one in version order.
 
 **Step 4 — Collect commits**
 
+PRs are squash-merged, so a single log covers everything:
+
 ```bash
-git log <previous_tag>..<current_tag> --format="%s%n%b" --merges
+git log <previous_tag>..<current_tag> --format="%s%n%b"
 ```
 
-Also include non-merge commits:
-```bash
-git log <previous_tag>..<current_tag> --format="%s%n%b" --no-merges
-```
+If there is no previous tag, use `git log <current_tag> --format="%s%n%b"` (includes the root commit).
 
 **Step 5 — Generate release notes**
 

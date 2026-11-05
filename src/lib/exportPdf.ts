@@ -1,6 +1,6 @@
 import Konva from 'konva'
 import { PDFDocument } from 'pdf-lib'
-import { A4_W, A4_H, type DocumentPage, type ImageItem } from '@/store'
+import { A4_W, A4_H, sortByZ, type DocumentPage, type ImageItem } from '@/store'
 
 const A4_PDF_W = 595.28
 const A4_PDF_H = 841.89
@@ -52,8 +52,7 @@ function renderPageToDataURL(
     new Konva.Rect({ x: 0, y: 0, width: A4_W, height: A4_H, fill: '#ffffff' })
   )
 
-  const sorted = [...page.canvasImages].sort((a, b) => a.zIndex - b.zIndex)
-  for (const ci of sorted) {
+  for (const ci of sortByZ(page.canvasImages)) {
     const img = imgEls.get(ci.imageId)
     if (!img) continue
     layer.add(
@@ -62,7 +61,8 @@ function renderPageToDataURL(
         x: ci.x,
         y: ci.y,
         width: ci.width,
-        height: ci.height
+        height: ci.height,
+        crop: ci.crop
       })
     )
   }

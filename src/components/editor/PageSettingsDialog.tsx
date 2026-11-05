@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, LayoutGrid, Columns3 } from 'lucide-react'
-import { toast } from 'sonner'
+import { LayoutGrid, Columns3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import ToastCard from '@/components/shared/ToastCard'
+import { showToast } from '@/components/shared/ToastCard'
 import {
   Dialog,
   DialogContent,
@@ -60,9 +59,9 @@ export default function PageSettingsDialog({ pageId, open, onOpenChange }: Props
       setAutoAlign(page.settings.autoAlign)
       setRows(String(page.settings.gridRows))
       setCols(String(page.settings.gridCols))
-      setMarginH(String(page.settings.marginH ?? 24))
-      setMarginV(String(page.settings.marginV ?? 24))
-      setGridGap(String(page.settings.gridGap ?? 12))
+      setMarginH(String(page.settings.marginH))
+      setMarginV(String(page.settings.marginV))
+      setGridGap(String(page.settings.gridGap))
     }
   }, [open, page?.id])
 
@@ -95,21 +94,50 @@ export default function PageSettingsDialog({ pageId, open, onOpenChange }: Props
     })
     if (res.dropped > 0) {
       const count = res.dropped
-      toast.custom((id) => (
-        <ToastCard
-          icon={
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-destructive/10">
-              <AlertCircle size={14} className="text-destructive" />
-            </div>
-          }
-          title={`${count} image${count > 1 ? 's' : ''} removed`}
-          description="Exceeded layout capacity."
-          onDismiss={() => toast.dismiss(id)}
-        />
-      ))
+      showToast('error', `${count} image${count > 1 ? 's' : ''} removed`, 'Exceeded layout capacity.')
     }
     onOpenChange(false)
   }
+
+  // Fields shared by the grid and masonry sections (only one section renders at a time).
+  const layoutFields = (
+    <>
+      <NumericField
+        label="COLUMNS COUNT"
+        value={cols}
+        onChange={setCols}
+        min={1}
+        max={12}
+        error={colsR.error}
+      />
+      <div className="flex flex-row gap-3">
+        <NumericField
+          label="MARGIN ⇆ (pt)"
+          value={marginH}
+          onChange={setMarginH}
+          min={0}
+          max={200}
+          error={marginHR.error}
+        />
+        <NumericField
+          label="MARGIN ⇅ (pt)"
+          value={marginV}
+          onChange={setMarginV}
+          min={0}
+          max={200}
+          error={marginVR.error}
+        />
+      </div>
+      <NumericField
+        label="CELL GAP (pt)"
+        value={gridGap}
+        onChange={setGridGap}
+        min={0}
+        max={200}
+        error={gridGapR.error}
+      />
+    </>
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -160,40 +188,7 @@ export default function PageSettingsDialog({ pageId, open, onOpenChange }: Props
                   max={12}
                   error={rowsR.error}
                 />
-                <NumericField
-                  label="COLUMNS COUNT"
-                  value={cols}
-                  onChange={setCols}
-                  min={1}
-                  max={12}
-                  error={colsR.error}
-                />
-                <div className="flex flex-row gap-3">
-                  <NumericField
-                    label="MARGIN ⇆ (pt)"
-                    value={marginH}
-                    onChange={setMarginH}
-                    min={0}
-                    max={200}
-                    error={marginHR.error}
-                  />
-                  <NumericField
-                    label="MARGIN ⇅ (pt)"
-                    value={marginV}
-                    onChange={setMarginV}
-                    min={0}
-                    max={200}
-                    error={marginVR.error}
-                  />
-                </div>
-                <NumericField
-                  label="CELL GAP (pt)"
-                  value={gridGap}
-                  onChange={setGridGap}
-                  min={0}
-                  max={200}
-                  error={gridGapR.error}
-                />
+                {layoutFields}
               </div>
               <div className="flex justify-center">
                 <GridPreview
@@ -216,40 +211,7 @@ export default function PageSettingsDialog({ pageId, open, onOpenChange }: Props
             </div>
             <div className="grid grid-cols-[180px_1fr] gap-6">
               <div className="flex flex-col gap-3">
-                <NumericField
-                  label="COLUMNS COUNT"
-                  value={cols}
-                  onChange={setCols}
-                  min={1}
-                  max={12}
-                  error={colsR.error}
-                />
-                <div className="flex flex-row gap-3">
-                  <NumericField
-                    label="MARGIN ⇆ (pt)"
-                    value={marginH}
-                    onChange={setMarginH}
-                    min={0}
-                    max={200}
-                    error={marginHR.error}
-                  />
-                  <NumericField
-                    label="MARGIN ⇅ (pt)"
-                    value={marginV}
-                    onChange={setMarginV}
-                    min={0}
-                    max={200}
-                    error={marginVR.error}
-                  />
-                </div>
-                <NumericField
-                  label="CELL GAP (pt)"
-                  value={gridGap}
-                  onChange={setGridGap}
-                  min={0}
-                  max={200}
-                  error={gridGapR.error}
-                />
+                {layoutFields}
               </div>
               <div className="flex justify-center">
                 <MasonryPreview
