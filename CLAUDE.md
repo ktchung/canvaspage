@@ -4,44 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-CanvasPage — a web app for composing multi-page A4 documents from images. Three pages: Editor (free canvas), Gallery (album browser), Import (drag-and-drop file upload). Single active document; all state is in-memory and wiped on refresh.
+CanvasPage — a web app for composing multi-page A4 documents from images. Three pages: Editor (free canvas), Gallery (album browser), Import (drag-and-drop file upload). Single active document.
 
-Full feature spec: `PRD.md`
+- Feature overview and tech stack: `README.md`
+- Full feature spec: `PRD.md`
+- Source conventions: `src/CLAUDE.md`
 
 ## Commands
 
 ```bash
 bun run dev       # Development with HMR (Vite)
-bun run build     # Production build
+bun run build     # Type-check (tsc --noEmit) + production build
 bun run preview   # Preview production build
 ```
 
-## Tech Stack
+There is no test suite. Verify changes with `bun run build` and by exercising the app in the browser.
 
-| Concern | Tool |
-|---|---|
-| Language | TypeScript |
-| UI | React 19 + Shadcn/ui + Tailwind v4 |
-| Routing | TanStack Router |
-| State | Zustand |
-| Editor canvas | react-konva |
-| PDF export | pdf-lib |
-| Build | Vite |
-| Package manager | Bun |
-
-## Architecture
-
-Single-page client-side web app. No backend.
-
-- **Source:** `src/` — React app, all UI. See `src/CLAUDE.md`.
-- **Build entry:** `index.html` (project root, standard Vite convention)
-- **State:** Zustand in-memory store. No localStorage, no IndexedDB.
-- **Images:** Stored as in-memory blob URLs via `URL.createObjectURL()`. Revoked on delete.
+`bunfig.toml` sets `minimumReleaseAge` to 7 days: `bun add` refuses package versions published less than a week ago.
 
 ## Key architectural decisions
 
-**No persistence.** All state lives in Zustand and is lost on page refresh. Images exist only as blob URLs in memory.
+**No persistence.** All state lives in a single in-memory Zustand store (`src/store/index.ts`) and is lost on page refresh. No localStorage, no IndexedDB. Images exist only as blob URLs created with `URL.createObjectURL()`.
 
-**No backend.** File import uses the browser File API. PDF export generates client-side via pdf-lib and triggers a browser download. No server, no API calls.
+**No backend.** File import uses the browser File API. PDF export is generated client-side with pdf-lib and triggers a browser download.
 
-**Album model.** An album is created per import action (one import = one album). Images belong to exactly one album. Deleting an image removes it from any canvas pages it appears on.
+**Album model.** At import time the user picks an existing album or creates a new one. Each image belongs to exactly one album. Deleting an image (or its album) revokes its blob URL and removes it from every canvas page it appears on.

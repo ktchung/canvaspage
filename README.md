@@ -18,16 +18,18 @@ A web application for composing multi-page A4 documents from images. Arrange ima
 
 ### Editor
 - Free-form canvas: drag and drop images anywhere on the A4 page, resize via handles
-- Z-order control: bring forward / send back for overlapping images
+- Crop images on the canvas
+- Z-order control: bring forward / send back for overlapping images (when auto-align is off)
+- Zoom (Ctrl/Cmd + wheel or `+`/`-`) and pan (right-click drag)
 - Multi-page document: add, remove, and reorder pages freely
-- Per-page settings: optional auto-align with configurable grid (rows x columns)
+- Per-page settings: auto-align Off, Grid (rows × columns) or Masonry (columns), with margins and gap
 - Bottom image tray: browse images by album and drag onto the canvas
 - Export to PDF: each canvas page maps to one A4 PDF page
 
 ### Gallery
 - Browse all imported images in a masonry grid or list view
 - Filter by album
-- Click any image to preview with full metadata (file size, source)
+- Click any image to preview with metadata (file size, album)
 - Delete images individually or in bulk — removes placements from canvas pages
 
 ### Import
@@ -35,9 +37,9 @@ A web application for composing multi-page A4 documents from images. Arrange ima
 - Assign imports to an existing album or create a new one at import time
 
 ### Albums
-- Created on each import action
+- Chosen at import time: pick an existing album or create a new one
 - Available as filters in Gallery and Editor tray
-- Renameable after creation
+- Delete an album to remove all of its images (and their canvas placements)
 
 ## Getting Started
 
@@ -68,3 +70,4 @@ bun run preview
 
 - All state is in-memory. Images are stored as blob URLs and lost on page refresh.
 - No backend — everything runs client-side in the browser.
+- `bun run build` type-checks with `tsc --noEmit` before bundling.
