@@ -574,9 +574,10 @@ export default function CanvasStage() {
                         targetCol = drag.hoverCol
                         useSnap = true
                       }
+                      const dims = effectiveDims(ci)
                       const fit = fitToCell(
-                        ci.natW,
-                        ci.natH,
+                        dims.natW,
+                        dims.natH,
                         targetRow,
                         targetCol,
                         page.settings

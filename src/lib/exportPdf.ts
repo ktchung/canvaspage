@@ -61,7 +61,8 @@ function renderPageToDataURL(
         x: ci.x,
         y: ci.y,
         width: ci.width,
-        height: ci.height
+        height: ci.height,
+        crop: ci.crop
       })
     )
   }

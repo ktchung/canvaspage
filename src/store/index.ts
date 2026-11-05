@@ -490,10 +490,12 @@ export const useAppStore = create<AppState>((set, get) => {
         if (partner) {
           const source = imageCell(dragged, p.settings)
           if (!source) return p
-          const draggedFit = fitToCell(dragged.natW, dragged.natH, row, col, p.settings)
+          const d = effectiveDims(dragged)
+          const pd = effectiveDims(partner)
+          const draggedFit = fitToCell(d.natW, d.natH, row, col, p.settings)
           const partnerFit = fitToCell(
-            partner.natW,
-            partner.natH,
+            pd.natW,
+            pd.natH,
             source.row,
             source.col,
             p.settings
@@ -507,7 +509,8 @@ export const useAppStore = create<AppState>((set, get) => {
             })
           }
         }
-        const fit = fitToCell(dragged.natW, dragged.natH, row, col, p.settings)
+        const { natW, natH } = effectiveDims(dragged)
+        const fit = fitToCell(natW, natH, row, col, p.settings)
         return {
           ...p,
           canvasImages: p.canvasImages.map((ci) =>
