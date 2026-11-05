@@ -1,10 +1,6 @@
 import type { Album, ImageItem } from '@/store'
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
+import { formatSize } from '@/lib/utils'
+import SelectCheckbox from './SelectCheckbox'
 
 interface ListViewProps {
   images: ImageItem[]
@@ -15,14 +11,6 @@ interface ListViewProps {
 }
 
 export default function ListView({ images, albums, selectedIds, onSelect, onPreview }: ListViewProps) {
-  if (images.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-muted-foreground text-sm">No images found</p>
-      </div>
-    )
-  }
-
   const albumMap = new Map(albums.map((a) => [a.id, a.name]))
 
   return (
@@ -47,17 +35,12 @@ export default function ListView({ images, albums, selectedIds, onSelect, onPrev
                 onClick={() => onPreview(img.id)}
               >
                 <td className="py-2 pr-2" onClick={(e) => { e.stopPropagation(); onSelect(img.id) }}>
-                  <div
-                    className={`h-4 w-4 rounded border-2 flex items-center justify-center transition-colors ${
-                      selected ? 'bg-primary border-primary' : 'border-border'
-                    }`}
-                  >
-                    {selected && (
-                      <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </div>
+                  <SelectCheckbox
+                    checked={selected}
+                    uncheckedClassName="border-border"
+                    className="h-4 w-4"
+                    iconClassName="h-2.5 w-2.5"
+                  />
                 </td>
                 <td className="py-2 pr-2">
                   <img

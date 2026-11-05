@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react'
+import { Trash2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -7,13 +7,8 @@ import {
   DialogClose,
   DialogTitle
 } from '@/components/ui/dialog'
+import { formatSize } from '@/lib/utils'
 import type { Album, ImageItem } from '@/store'
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
 
 interface ImagePreviewDialogProps {
   image: ImageItem | null
@@ -39,13 +34,11 @@ export default function ImagePreviewDialog({
       >
         {image && (
           <>
-            <DialogTitle className="sr-only">{image?.name ?? 'Image preview'}</DialogTitle>
+            <DialogTitle className="sr-only">{image.name}</DialogTitle>
             {/* Close button */}
             <DialogClose className="absolute top-3 right-3 z-10 rounded-sm opacity-70 hover:opacity-100 transition-opacity">
               <span className="sr-only">Close</span>
-              <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X className="size-4" />
             </DialogClose>
 
             {/* Image */}

@@ -1,9 +1,7 @@
 import { useState } from 'react'
-import { AlertCircle, CheckCircle2 } from 'lucide-react'
-import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import { exportDocumentToPdf } from '@/lib/exportPdf'
-import ToastCard from '@/components/shared/ToastCard'
+import { showToast } from '@/components/shared/ToastCard'
 
 export function useExportPdf() {
   const pages = useAppStore((s) => s.pages)
@@ -17,7 +15,7 @@ export function useExportPdf() {
     setExporting(true)
     try {
       const bytes = await exportDocumentToPdf(pages, images)
-      const blob = new Blob([bytes], { type: 'application/pdf' })
+      const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -26,32 +24,9 @@ export function useExportPdf() {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      toast.custom((id) => (
-        <ToastCard
-          icon={
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10">
-              <CheckCircle2 size={14} className="text-primary" />
-            </div>
-          }
-          title="PDF downloaded"
-          description="canvaspage.pdf"
-          onDismiss={() => toast.dismiss(id)}
-        />
-      ))
+      showToast('success', 'PDF downloaded', 'canvaspage.pdf')
     } catch (err) {
-      const message = (err as Error).message
-      toast.custom((id) => (
-        <ToastCard
-          icon={
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-destructive/10">
-              <AlertCircle size={14} className="text-destructive" />
-            </div>
-          }
-          title="Export failed"
-          description={message}
-          onDismiss={() => toast.dismiss(id)}
-        />
-      ))
+      showToast('error', 'Export failed', (err as Error).message)
     } finally {
       setExporting(false)
     }

@@ -97,7 +97,11 @@ function GalleryPage() {
         onDeleteAlbum={handleDeleteAlbum}
       />
       <div className="flex-1 overflow-y-auto">
-        {viewMode === 'grid' ? (
+        {filteredImages.length === 0 ? (
+          <div className="flex h-full items-center justify-center">
+            <p className="text-muted-foreground text-sm">No images found</p>
+          </div>
+        ) : viewMode === 'grid' ? (
           <MasonryGrid
             images={filteredImages}
             selectedIds={selectedIds}
