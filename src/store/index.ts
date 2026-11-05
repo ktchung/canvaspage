@@ -104,20 +104,15 @@ interface AppState {
     pageId: string,
     patch: Partial<PageSettings>
   ) => UpdatePageSettingsResult
-  reflowAutoAlign: (pageId: string) => ReflowResult
   reorderMasonryImage: (pageId: string, id: string, newIndex: number) => ReflowResult
 }
 
-function makeId(prefix: string) {
+export function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-function makePageId() {
-  return makeId('page')
-}
-
 const defaultPage = (): DocumentPage => ({
-  id: makePageId(),
+  id: makeId('page'),
   canvasImages: [],
   settings: {
     autoAlign: 'off',
@@ -142,10 +137,7 @@ export interface CellMetrics {
 }
 
 export function cellMetrics(settings: PageSettings): CellMetrics {
-  const marginH = settings.marginH ?? 24
-  const marginV = settings.marginV ?? 24
-  const gridGap = settings.gridGap ?? 12
-  const { gridRows, gridCols } = settings
+  const { marginH, marginV, gridGap, gridRows, gridCols } = settings
   const usableW = A4_W - 2 * marginH
   const usableH = A4_H - 2 * marginV
   const cellW = (usableW - gridGap * (gridCols - 1)) / gridCols
@@ -217,7 +209,7 @@ export function pointToCell(
   return { row: bestR, col: bestC }
 }
 
-function imageCell(
+export function imageCell(
   ci: CanvasImage,
   settings: PageSettings
 ): { row: number; col: number } | null {
@@ -235,22 +227,9 @@ export interface MasonryMetrics {
 }
 
 export function masonryMetrics(settings: PageSettings): MasonryMetrics {
-  const marginH = settings.marginH ?? 24
-  const marginV = settings.marginV ?? 24
-  const gridGap = settings.gridGap ?? 12
-  const { gridCols } = settings
-  const usableW = A4_W - 2 * marginH
-  const usableH = A4_H - 2 * marginV
-  const colW = (usableW - gridGap * (gridCols - 1)) / gridCols
-  return {
-    marginH,
-    marginV,
-    gridGap,
-    gridCols,
-    colW,
-    usableH,
-    originX: (col: number) => marginH + col * (colW + gridGap)
-  }
+  // Masonry columns use the same horizontal geometry as grid cells.
+  const { marginH, marginV, gridGap, gridCols, cellW, originX } = cellMetrics(settings)
+  return { marginH, marginV, gridGap, gridCols, colW: cellW, usableH: A4_H - 2 * marginV, originX }
 }
 
 export interface MasonryPlacement {
@@ -290,14 +269,20 @@ export function computeMasonryLayout(
   return { placements, droppedCount: dropped }
 }
 
-function effectiveDims(ci: CanvasImage) {
+/** Source dimensions of the visible region (the crop, if any). */
+export function effectiveDims(ci: CanvasImage) {
   return { natW: ci.crop?.width ?? ci.natW, natH: ci.crop?.height ?? ci.natH }
+}
+
+/** Copy of `images` ordered bottom-to-top. */
+export function sortByZ<T extends { zIndex: number }>(images: T[]): T[] {
+  return [...images].sort((a, b) => a.zIndex - b.zIndex)
 }
 
 function reflowGridPage(page: DocumentPage): { page: DocumentPage; dropped: number } {
   const { gridCols } = page.settings
   const capacity = gridCapacity(page.settings)
-  const sorted = [...page.canvasImages].sort((a, b) => a.zIndex - b.zIndex)
+  const sorted = sortByZ(page.canvasImages)
   const kept = sorted.slice(0, capacity)
   const dropped = sorted.length - kept.length
   const canvasImages = kept.map((ci, i) => {
@@ -311,7 +296,7 @@ function reflowGridPage(page: DocumentPage): { page: DocumentPage; dropped: numb
 }
 
 function reflowMasonryPage(page: DocumentPage): { page: DocumentPage; dropped: number } {
-  const sorted = [...page.canvasImages].sort((a, b) => a.zIndex - b.zIndex)
+  const sorted = sortByZ(page.canvasImages)
   const { placements, droppedCount } = computeMasonryLayout(
     sorted.map(effectiveDims),
     page.settings
@@ -347,7 +332,36 @@ function findEmptyCell(page: DocumentPage): { row: number; col: number } | null 
   return null
 }
 
+/** Drop matching images; masonry pages reflow to close the gaps. */
+function removeCanvasImagesWhere(
+  page: DocumentPage,
+  pred: (ci: CanvasImage) => boolean
+): DocumentPage {
+  const filtered = { ...page, canvasImages: page.canvasImages.filter((ci) => !pred(ci)) }
+  return page.settings.autoAlign === 'masonry' ? reflowMasonryPage(filtered).page : filtered
+}
+
+/** Swap z-order of `id` with its neighbour above (+1) or below (-1). */
+function swapZ(page: DocumentPage, id: string, dir: 1 | -1): DocumentPage {
+  const sorted = sortByZ(page.canvasImages)
+  const idx = sorted.findIndex((ci) => ci.id === id)
+  const a = sorted[idx]
+  const b = sorted[idx + dir]
+  if (idx < 0 || !b) return page
+  return {
+    ...page,
+    canvasImages: page.canvasImages.map((ci) => {
+      if (ci.id === a.id) return { ...ci, zIndex: b.zIndex }
+      if (ci.id === b.id) return { ...ci, zIndex: a.zIndex }
+      return ci
+    })
+  }
+}
+
 export const useAppStore = create<AppState>((set, get) => {
+  const updatePage = (pageId: string, fn: (p: DocumentPage) => DocumentPage) =>
+    set((s) => ({ pages: s.pages.map((p) => (p.id === pageId ? fn(p) : p)) }))
+
   const firstPage = defaultPage()
   return {
     albums: [],
@@ -370,16 +384,9 @@ export const useAppStore = create<AppState>((set, get) => {
         return {
           albums: s.albums.filter((a) => a.id !== id),
           images: s.images.filter((i) => i.albumId !== id),
-          pages: s.pages.map((p) => {
-            const filtered = {
-              ...p,
-              canvasImages: p.canvasImages.filter((ci) => !imageIds.has(ci.imageId))
-            }
-            if (p.settings.autoAlign === 'masonry') {
-              return reflowMasonryPage(filtered).page
-            }
-            return filtered
-          })
+          pages: s.pages.map((p) =>
+            removeCanvasImagesWhere(p, (ci) => imageIds.has(ci.imageId))
+          )
         }
       }),
 
@@ -390,16 +397,7 @@ export const useAppStore = create<AppState>((set, get) => {
         if (img) URL.revokeObjectURL(img.url)
         return {
           images: s.images.filter((i) => i.id !== id),
-          pages: s.pages.map((p) => {
-            const filtered = {
-              ...p,
-              canvasImages: p.canvasImages.filter((ci) => ci.imageId !== id)
-            }
-            if (p.settings.autoAlign === 'masonry') {
-              return reflowMasonryPage(filtered).page
-            }
-            return filtered
-          })
+          pages: s.pages.map((p) => removeCanvasImagesWhere(p, (ci) => ci.imageId === id))
         }
       }),
 
@@ -428,6 +426,7 @@ export const useAppStore = create<AppState>((set, get) => {
     addCanvasImage: (pageId, ci, options) => {
       const page = get().pages.find((p) => p.id === pageId)
       if (!page) return { ok: false }
+      let placed = ci
       if (page.settings.autoAlign === 'grid') {
         if (page.canvasImages.length >= gridCapacity(page.settings)) {
           return { ok: false, rejected: true, reason: 'grid-full' }
@@ -451,211 +450,110 @@ export const useAppStore = create<AppState>((set, get) => {
           target = findEmptyCell(page)
           if (!target) return { ok: false, rejected: true, reason: 'grid-full' }
         }
-        const fit = fitToCell(ci.natW, ci.natH, target.row, target.col, page.settings)
-        const snapped = { ...ci, ...fit }
-        set((s) => ({
-          pages: s.pages.map((p) =>
-            p.id === pageId ? { ...p, canvasImages: [...p.canvasImages, snapped] } : p
-          )
-        }))
-        return { ok: true }
-      }
-      if (page.settings.autoAlign === 'masonry') {
-        const sorted = [...page.canvasImages].sort((a, b) => a.zIndex - b.zIndex)
-        const items = [
-          ...sorted.map(effectiveDims),
-          effectiveDims(ci)
-        ]
-        const { placements } = computeMasonryLayout(items, page.settings)
+        placed = { ...ci, ...fitToCell(ci.natW, ci.natH, target.row, target.col, page.settings) }
+      } else if (page.settings.autoAlign === 'masonry') {
+        const sorted = sortByZ(page.canvasImages)
+        const { placements } = computeMasonryLayout(
+          [...sorted.map(effectiveDims), effectiveDims(ci)],
+          page.settings
+        )
         const placementForNew = placements[placements.length - 1]
         if (!placementForNew) {
           return { ok: false, rejected: true, reason: 'grid-full' }
         }
-        const snapped = { ...ci, ...placementForNew, zIndex: sorted.length }
-        set((s) => ({
-          pages: s.pages.map((p) =>
-            p.id === pageId ? { ...p, canvasImages: [...p.canvasImages, snapped] } : p
-          )
-        }))
-        return { ok: true }
+        placed = { ...ci, ...placementForNew, zIndex: sorted.length }
       }
-      set((s) => ({
-        pages: s.pages.map((p) =>
-          p.id === pageId ? { ...p, canvasImages: [...p.canvasImages, ci] } : p
-        )
-      }))
+      updatePage(pageId, (p) => ({ ...p, canvasImages: [...p.canvasImages, placed] }))
       return { ok: true }
     },
     updateCanvasImage: (pageId, id, patch) =>
-      set((s) => ({
-        pages: s.pages.map((p) =>
-          p.id === pageId
-            ? {
-                ...p,
-                canvasImages: p.canvasImages.map((ci) =>
-                  ci.id === id ? { ...ci, ...patch } : ci
-                )
-              }
-            : p
-        )
+      updatePage(pageId, (p) => ({
+        ...p,
+        canvasImages: p.canvasImages.map((ci) => (ci.id === id ? { ...ci, ...patch } : ci))
       })),
     removeCanvasImage: (pageId, id) =>
-      set((s) => ({
-        pages: s.pages.map((p) => {
-          if (p.id !== pageId) return p
-          const filtered = {
-            ...p,
-            canvasImages: p.canvasImages.filter((ci) => ci.id !== id)
-          }
-          if (p.settings.autoAlign === 'masonry') {
-            return reflowMasonryPage(filtered).page
-          }
-          return filtered
-        })
-      })),
-    bringForward: (pageId, id) =>
-      set((s) => ({
-        pages: s.pages.map((p) => {
-          if (p.id !== pageId) return p
-          const sorted = [...p.canvasImages].sort((a, b) => a.zIndex - b.zIndex)
-          const idx = sorted.findIndex((ci) => ci.id === id)
-          if (idx < 0 || idx === sorted.length - 1) return p
-          const a = sorted[idx]
-          const b = sorted[idx + 1]
-          return {
-            ...p,
-            canvasImages: p.canvasImages.map((ci) => {
-              if (ci.id === a.id) return { ...ci, zIndex: b.zIndex }
-              if (ci.id === b.id) return { ...ci, zIndex: a.zIndex }
-              return ci
-            })
-          }
-        })
-      })),
+      updatePage(pageId, (p) => removeCanvasImagesWhere(p, (ci) => ci.id === id)),
+    bringForward: (pageId, id) => updatePage(pageId, (p) => swapZ(p, id, 1)),
+    sendBackward: (pageId, id) => updatePage(pageId, (p) => swapZ(p, id, -1)),
     dragSnapToCell: (pageId, id, row, col) =>
-      set((s) => ({
-        pages: s.pages.map((p) => {
-          if (p.id !== pageId) return p
-          if (p.settings.autoAlign !== 'grid') return p
-          const { gridRows, gridCols } = p.settings
-          if (row < 0 || row >= gridRows || col < 0 || col >= gridCols) return p
-          const dragged = p.canvasImages.find((ci) => ci.id === id)
-          if (!dragged) return p
-          const partner = p.canvasImages.find((ci) => {
-            if (ci.id === id) return false
-            const cell = imageCell(ci, p.settings)
-            return cell?.row === row && cell?.col === col
-          })
-          if (partner) {
-            const source = imageCell(dragged, p.settings)
-            if (!source) return p
-            const draggedFit = fitToCell(dragged.natW, dragged.natH, row, col, p.settings)
-            const partnerFit = fitToCell(
-              partner.natW,
-              partner.natH,
-              source.row,
-              source.col,
-              p.settings
-            )
-            return {
-              ...p,
-              canvasImages: p.canvasImages.map((ci) => {
-                if (ci.id === dragged.id) return { ...ci, ...draggedFit }
-                if (ci.id === partner.id) return { ...ci, ...partnerFit }
-                return ci
-              })
-            }
-          }
-          const fit = fitToCell(dragged.natW, dragged.natH, row, col, p.settings)
-          return {
-            ...p,
-            canvasImages: p.canvasImages.map((ci) =>
-              ci.id === dragged.id ? { ...ci, ...fit } : ci
-            )
-          }
+      updatePage(pageId, (p) => {
+        if (p.settings.autoAlign !== 'grid') return p
+        const { gridRows, gridCols } = p.settings
+        if (row < 0 || row >= gridRows || col < 0 || col >= gridCols) return p
+        const dragged = p.canvasImages.find((ci) => ci.id === id)
+        if (!dragged) return p
+        const partner = p.canvasImages.find((ci) => {
+          if (ci.id === id) return false
+          const cell = imageCell(ci, p.settings)
+          return cell?.row === row && cell?.col === col
         })
-      })),
-    sendBackward: (pageId, id) =>
-      set((s) => ({
-        pages: s.pages.map((p) => {
-          if (p.id !== pageId) return p
-          const sorted = [...p.canvasImages].sort((a, b) => a.zIndex - b.zIndex)
-          const idx = sorted.findIndex((ci) => ci.id === id)
-          if (idx <= 0) return p
-          const a = sorted[idx]
-          const b = sorted[idx - 1]
+        if (partner) {
+          const source = imageCell(dragged, p.settings)
+          if (!source) return p
+          const draggedFit = fitToCell(dragged.natW, dragged.natH, row, col, p.settings)
+          const partnerFit = fitToCell(
+            partner.natW,
+            partner.natH,
+            source.row,
+            source.col,
+            p.settings
+          )
           return {
             ...p,
             canvasImages: p.canvasImages.map((ci) => {
-              if (ci.id === a.id) return { ...ci, zIndex: b.zIndex }
-              if (ci.id === b.id) return { ...ci, zIndex: a.zIndex }
+              if (ci.id === dragged.id) return { ...ci, ...draggedFit }
+              if (ci.id === partner.id) return { ...ci, ...partnerFit }
               return ci
             })
           }
-        })
-      })),
+        }
+        const fit = fitToCell(dragged.natW, dragged.natH, row, col, p.settings)
+        return {
+          ...p,
+          canvasImages: p.canvasImages.map((ci) =>
+            ci.id === dragged.id ? { ...ci, ...fit } : ci
+          )
+        }
+      }),
 
     updatePageSettings: (pageId, patch) => {
       let dropped = 0
-      set((s) => ({
-        pages: s.pages.map((p) => {
-          if (p.id !== pageId) return p
-          const nextSettings = { ...p.settings, ...patch }
-          const next: DocumentPage = { ...p, settings: nextSettings }
-          const layoutChanged =
-            patch.gridRows !== undefined ||
-            patch.gridCols !== undefined ||
-            patch.marginH !== undefined ||
-            patch.marginV !== undefined ||
-            patch.gridGap !== undefined
-          const modeChanged =
-            patch.autoAlign !== undefined && patch.autoAlign !== p.settings.autoAlign
-          const needsReflow =
-            nextSettings.autoAlign !== 'off' && (modeChanged || layoutChanged)
-          if (needsReflow) {
-            const { page: reflowed, dropped: d } = reflowPage(next)
-            dropped = d
-            return reflowed
-          }
-          return next
-        })
-      }))
-      return { dropped }
-    },
-    reflowAutoAlign: (pageId) => {
-      let dropped = 0
-      set((s) => ({
-        pages: s.pages.map((p) => {
-          if (p.id !== pageId) return p
-          if (p.settings.autoAlign === 'off') return p
-          const { page: reflowed, dropped: d } = reflowPage(p)
-          dropped = d
-          return reflowed
-        })
-      }))
+      updatePage(pageId, (p) => {
+        const nextSettings = { ...p.settings, ...patch }
+        const next: DocumentPage = { ...p, settings: nextSettings }
+        const layoutChanged =
+          patch.gridRows !== undefined ||
+          patch.gridCols !== undefined ||
+          patch.marginH !== undefined ||
+          patch.marginV !== undefined ||
+          patch.gridGap !== undefined
+        const modeChanged =
+          patch.autoAlign !== undefined && patch.autoAlign !== p.settings.autoAlign
+        if (!modeChanged && !layoutChanged) return next
+        const { page: reflowed, dropped: d } = reflowPage(next)
+        dropped = d
+        return reflowed
+      })
       return { dropped }
     },
     reorderMasonryImage: (pageId, id, newIndex) => {
       let dropped = 0
-      set((s) => ({
-        pages: s.pages.map((p) => {
-          if (p.id !== pageId) return p
-          if (p.settings.autoAlign !== 'masonry') return p
-          const sorted = [...p.canvasImages].sort((a, b) => a.zIndex - b.zIndex)
-          const oldIdx = sorted.findIndex((ci) => ci.id === id)
-          if (oldIdx < 0) return p
-          const [item] = sorted.splice(oldIdx, 1)
-          const clamped = Math.max(0, Math.min(sorted.length, newIndex))
-          sorted.splice(clamped, 0, item)
-          const reindexed: DocumentPage = {
-            ...p,
-            canvasImages: sorted.map((ci, i) => ({ ...ci, zIndex: i }))
-          }
-          const { page: reflowed, dropped: d } = reflowMasonryPage(reindexed)
-          dropped = d
-          return reflowed
-        })
-      }))
+      updatePage(pageId, (p) => {
+        if (p.settings.autoAlign !== 'masonry') return p
+        const sorted = sortByZ(p.canvasImages)
+        const oldIdx = sorted.findIndex((ci) => ci.id === id)
+        if (oldIdx < 0) return p
+        const [item] = sorted.splice(oldIdx, 1)
+        const clamped = Math.max(0, Math.min(sorted.length, newIndex))
+        sorted.splice(clamped, 0, item)
+        const reindexed: DocumentPage = {
+          ...p,
+          canvasImages: sorted.map((ci, i) => ({ ...ci, zIndex: i }))
+        }
+        const { page: reflowed, dropped: d } = reflowMasonryPage(reindexed)
+        dropped = d
+        return reflowed
+      })
       return { dropped }
     }
   }
